@@ -22,7 +22,7 @@ The file includes 312 negative `TOUCH_TIME` values and 5,567 blank `SHOT_CLOCK` 
 
 ### Chronological evaluation sample
 
-The audit uses February 1, 2015 as an illustrative holdout boundary. Dates come from `MATCHUP`. Every holdout shooter appears in the earlier sample.
+The final evaluation uses February 1, 2015 as the holdout boundary. Dates come from `MATCHUP`. Every holdout shooter appears in the earlier sample.
 
 | Sample | Attempts | Games | Shooters | Curry threes | Curry threes under 2 ft | Curry threes at least 6 ft |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -33,7 +33,7 @@ The sample supports testing a model that shares information across shooters and 
 
 ### Cross-check against NBA shot charts
 
-Curry's attempt totals, makes, and sequence of periods, shot values, and outcomes matched the NBA shot charts for October 29, 2014 at Sacramento (7 of 17) and March 4, 2015 against Milwaukee (6 of 16). The archived game clock showed 0–4 more seconds remaining than the shot-chart clock across those 33 attempts. A future coordinate join needs an independently checked shot match, since exact clock equality matched only one of the sampled attempts. The official charts used in the cross-check have no defender distance. [Sacramento box score](https://www.nba.com/game/gsw-vs-sac-0021400014/box-score) · [Milwaukee box score](https://www.nba.com/bucks/game/0021400907-bucks-vs-warriors-oakland-ca-03-04-2015)
+Curry's attempt totals, makes, and sequence of periods, shot values, and outcomes matched the NBA shot charts for October 29, 2014 at Sacramento (7 of 17) and March 4, 2015 against Milwaukee (6 of 16). The archived game clock showed 0–4 more seconds remaining than the shot-chart clock across those 33 attempts. Exact clock equality matched only one of the sampled attempts. This motivated the clock tolerance in the later [play-by-play join](model-design.md#match-the-official-events). The official charts used in the cross-check have no defender distance. [Sacramento box score](https://www.nba.com/game/gsw-vs-sac-0021400014/box-score) · [Milwaukee box score](https://www.nba.com/bucks/game/0021400907-bucks-vs-warriors-oakland-ca-03-04-2015)
 
 ### Reproduce the audit
 

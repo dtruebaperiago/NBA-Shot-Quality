@@ -26,9 +26,21 @@ The final model lowered log loss by 5.45% overall relative to the tracking vote.
 | 4 to under 6 ft | 4,318 | 2,834 |
 | 6 ft or more | 2,008 | 2,734 |
 
-The shot-family table includes all categories and the fallback rows. The holdout contains 1,217 dunks, 5,809 layups, 645 two-point pull-ups, and 197 three-point pull-ups. The final model placed only 19 threes at 60% or higher, so the calibration curve in that range is based on sparse bins.
+| Recorded shot family | 2PT attempts | 3PT attempts |
+| --- | ---: | ---: |
+| Dunk | 1,217 | 0 |
+| Floater | 360 | 2 |
+| Generic jump shot | 7,344 | 6,610 |
+| Hook | 1,003 | 0 |
+| Layup | 5,809 | 0 |
+| Other jumper | 952 | 32 |
+| Pull-up | 645 | 197 |
+| Step-back | 295 | 81 |
+| Tip | 513 | 0 |
+| Turnaround or fadeaway | 888 | 12 |
+| Family unavailable | 97 | 15 |
 
-[All metrics](../data/processed/final-evaluation/holdout-scores.csv) · [Shot-family and defender-distance slices](../data/processed/final-evaluation/holdout-slices.csv) · [Calibration plot](../data/processed/final-evaluation/holdout-calibration.png) · [Calibration counts](../data/processed/final-evaluation/holdout-calibration.csv)
+The final model placed only 19 threes at 60% or higher, so the calibration curve in that range is based on sparse bins. The [reproduction guide](reproduction.md#2-build-and-score) lists where to find the locally generated plot, metrics, calibration counts, and per-shot predictions.
 
 This evaluates retrospective historical prediction through March 4, 2015. The enriched model uses historical scorer descriptions and archived shot coordinates. A live system would need equivalent inputs at release.
 
@@ -42,15 +54,12 @@ Fit separate 2PT and 3PT classifiers on October 28, 2014 through January 31, 201
 - The shot-clock predictor uses the recorded clock with the late-period fallback. Context before release uses preceding events in source order. Shooter, defender, family, and opponent histories use strictly earlier dates and update between completed dates. Defender residuals follow the existing expanding-window logistic procedure. The fitted final trees and preprocessing stay fixed while scoring.
 - Compare against the tracking vote on every shot, the earlier same-type league rate, and shooter history with its shrinkage selected on January. Report log loss, Brier, accuracy, ROC AUC, five-point Expected Calibration Error, and slice counts.
 
+## Reading the metrics
+
+Log loss is the primary score because each output is a probability. It penalizes placing very low probability on the eventual result. Brier score measures the mean squared difference between predicted probabilities and binary outcomes. ROC AUC measures how well scores rank makes above misses, and accuracy uses a 50% decision threshold.
+
+Expected calibration error (ECE) averages the absolute gaps between mean predicted probability and observed make rate in fixed five-percentage-point bands, weighted by attempt count. Zero is ideal. ECE depends on the buckets and their sample sizes. A model can have low ECE with predictions concentrated near the league average, which is why the report gives log loss, AUC, and the calibration counts alongside it.
+
 ## Reproduce
 
-Use Python 3.11 and run from the repository root. Install the [final-run dependencies](../requirements-final.txt), build the [modeling dataset](modeling-dataset.md), and populate the official PlayByPlayV3 cache for the development games. The final runner can fetch the reserved games separately.
-
-~~~powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements-final.txt
-.\.venv\Scripts\python.exe -u src/final_evaluation.py --fetch-holdout
-.\.venv\Scripts\python.exe -u src/final_evaluation.py --final
-~~~
-
-Run the same script with --january-check to verify the saved January tracking and play-by-play predictions when those files are available. The final run writes the metrics, predictions, calibration, slices, and settings in data/processed/final-evaluation/. The local models/final-shot-quality.joblib bundle includes the fitted preprocessing and models. Use fresh output paths for a reproduction of a completed run. An interrupted publication can be retried at the original paths.
+Follow the [reproduction guide](reproduction.md) for commands and artifact locations. The [model design](model-design.md) lists all features and explains how an attempt routes to the enriched or tracking-only model.

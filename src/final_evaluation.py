@@ -165,7 +165,7 @@ def check_output_paths(output, models):
 def save_results(output, models, settings, bundles, verification, metrics, calibration, predictions):
     output.mkdir(parents=True, exist_ok=True)
     models.parent.mkdir(parents=True, exist_ok=True)
-    # shortcut: one writer per output and model pair, add a lock if runs share those paths.
+    # Publication assumes one writer per output and model pair.
     with TemporaryDirectory(dir=output) as report_dir, TemporaryDirectory(dir=models.parent) as model_dir:
         report = Path(report_dir)
         staged_model = Path(model_dir) / models.name

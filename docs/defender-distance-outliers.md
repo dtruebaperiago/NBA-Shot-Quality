@@ -2,11 +2,9 @@
 
 The 48 shots flagged in the first EDA notebook span 46 games. The dates and teams come from MATCHUP. Games are grouped by GAME_ID for searching, and each shot has its own row for review. Final scores distinguish games with the same teams.
 
-The search for the 48 shots found date-matched public YouTube recaps for 10 games. The remaining links are archival leads or footage of a different play. Only the one LeBron rows have footage matched to the target shot and another one comes from a Lebron highlight compilation. Clocks come from NBA play-by-play unless marked CSV. Defender distances are the original CSV values.
+The search found date-matched public YouTube recaps for 10 games. Some links lead to archival listings or show a different play. The last column records what the footage shows and where the target attempt could be identified. Clocks come from NBA play-by-play unless marked CSV. Defender distances are the original CSV values.
 
-Used the last column to record what the footage shows, confirm the (maybe approximate) distance if you can judge it, or why the distance remains unverified.
-
-**Review decision** — Keep all 48 recorded defender distances. I found the distances plausible in the clips that showed the target shots. The remaining shots are retained as plausible, with their individual distances unverified.
+All 48 measurements were retained. The clips showing the target shots support the plausibility of the recorded distances as approximations. Individual distances remain unverified for the other attempts.
 
 | Game date | Matchup and final score, away first | Target shot | Highlights search result | Comments / distance verification |
 | --- | --- | --- | --- | --- |
