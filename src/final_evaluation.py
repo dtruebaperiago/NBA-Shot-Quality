@@ -67,6 +67,18 @@ def predict_specialist(bundle, scoring, linked_scoring):
     return tracking, probabilities.to_numpy()
 
 
+def prepare_final_rows(train, scoring, value, history, metadata, cutoff):
+    rows, tracking_columns = prepare_specialist_rows(train, scoring, value, history, metadata, cutoff=cutoff)
+    eligible = rows[[*COURT, FAMILY]].notna().all(axis=1)
+    matched = add_opponent_history(rows.loc[eligible], OPENING_RATES[value])
+    columns = [*tracking_columns, *COURT, FAMILY]
+    if value == 2:
+        matched = add_family_history(matched, OPENING_RATES[value])
+        columns.extend(FAMILY_HISTORY)
+    columns.extend(GAME_CONTEXT)
+    return rows, matched, tracking_columns, columns
+
+
 def evaluate_models(rows, mode):
     predictions = {name: rows[name].to_numpy() for name in MODELS}
     results = diagnostic_scores(rows[TARGET], predictions, include_calibration=False)
@@ -239,14 +251,7 @@ def main():
     bundles, results, verification = {}, [], {}
     with threadpool_limits(limits=3):
         for value in (2, 3):
-            rows, tracking_columns = prepare_specialist_rows(train, scoring, value, HISTORY, metadata, cutoff=cutoff)
-            eligible = rows[[*COURT, FAMILY]].notna().all(axis=1)
-            matched = add_opponent_history(rows.loc[eligible], OPENING_RATES[value])
-            columns = [*tracking_columns, *COURT, FAMILY]
-            if value == 2:
-                matched = add_family_history(matched, OPENING_RATES[value])
-                columns.extend(FAMILY_HISTORY)
-            columns.extend(GAME_CONTEXT)
+            rows, matched, tracking_columns, columns = prepare_final_rows(train, scoring, value, HISTORY, metadata, cutoff)
             earlier = rows["GAME_DATE"].lt(cutoff)
             matched_earlier = matched["GAME_DATE"].lt(cutoff)
             training, scored = rows.loc[earlier], rows.loc[~earlier]

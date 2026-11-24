@@ -1,0 +1,103 @@
+:root {
+  color-scheme: light;
+  --font-display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --font-body: "DM Sans Variable", sans-serif;
+  --font-data: "IBM Plex Mono", monospace;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --control: 40px;
+  --radius: 5px;
+  --radius-panel: 7px;
+  --page: #f1eee6;
+  --surface: #fbfaf5;
+  --surface-soft: #eeece3;
+  --surface-hover: #eae7dc;
+  --line: #d9d7cb;
+  --line-strong: #bac0b3;
+  --control-line: #808b7d;
+  --ink: #172820;
+  --muted: #58665d;
+  --nav: #172820;
+  --nav-text: #f6f4e9;
+  --nav-muted: #acb9ab;
+  --nav-line: #36473d;
+  --nav-hover: #283e33;
+  --signal: #b23f2b;
+  --signal-dark: #942f20;
+  --signal-light: #f2aa92;
+  --signal-soft: #fcf0e9;
+  --moss: #30664f;
+  --moss-soft: #edf4eb;
+  --warning: #74501e;
+  --warning-soft: #f8eed9;
+  --focus: #2e654f;
+  --court: #273c33;
+  --court-apron: #122720;
+  --court-studio: #29483c;
+  --court-floor: #3a5e50;
+  --court-edge: #28473b;
+  --court-board: #c7dcd0;
+  --court-rim: #ffb292;
+  --court-key: #31483d;
+  --court-line: #92a597;
+  --court-label: #bac9b9;
+  --plot-a-make: #a4dba2;
+  --plot-a-miss: #ff8582;
+  --plot-b-make: #83cfe9;
+  --plot-b-miss: #f7bf73;
+  --plot-b-ink: #27647a;
+  --plot-selection: #fff6db;
+  --shadow: 0 0 0 1px oklch(0 0 0 / .08), 0 12px 26px -8px oklch(0 0 0 / .16), 0 24px 64px -12px oklch(0 0 0 / .18);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #1b2721;
+  --surface: #23322a;
+  --surface-soft: #293a30;
+  --surface-hover: #304339;
+  --line: #394c3f;
+  --line-strong: #526858;
+  --control-line: #819785;
+  --ink: #f0f1e5;
+  --muted: #b5c1b3;
+  --nav: #121f18;
+  --nav-line: #35463a;
+  --signal: #f1a18a;
+  --signal-dark: #fac1b0;
+  --signal-soft: #3f2f28;
+  --moss: #a6d3b0;
+  --moss-soft: #2d4134;
+  --warning: #e9c78e;
+  --warning-soft: #403725;
+  --focus: #a6d3b0;
+  --court: #202f28;
+  --court-apron: #102019;
+  --court-studio: #223b30;
+  --court-floor: #2f5041;
+  --court-edge: #254236;
+  --court-key: #283e32;
+  --court-line: #889d8a;
+  --court-label: #b4c5b3;
+  --plot-b-ink: #83cfe9;
+  --shadow: 0 0 0 1px oklch(1 0 0 / .13), 0 12px 48px oklch(0 0 0 / .24);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { min-width: 320px; }
+body { margin: 0; color: var(--ink); background: var(--page); font: 400 .9375rem/1.5 var(--font-body); }
+button, input, textarea, select { color: inherit; font: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: default; }
+a { color: inherit; }
+h1, h2, h3, p { margin: 0; }
+::selection { color: var(--ink); background: var(--signal-light); }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+
