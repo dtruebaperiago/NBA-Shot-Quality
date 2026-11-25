@@ -9,3 +9,6 @@ __pycache__/
 /models/*
 !/models/.gitkeep
 !/models/*.md
+
+.vercel
+.env*
