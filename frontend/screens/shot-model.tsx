@@ -3,7 +3,8 @@
 import { ArrowUpRight, CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
-import { useMemo, useState, type CSSProperties } from "react";
+import { useMemo, type CSSProperties } from "react";
+import { ModelRangeRanking } from "../components/model-range-ranking";
 import { AnimatedNumber } from "../components/animated-number";
 import { Badge, Button, EmptyState, PageHeader, PanelHeader, Segment, SelectField } from "../components/ui";
 import { gameLabel } from "../lib/archive-query";
@@ -11,7 +12,9 @@ import type { ArchiveCatalog } from "../lib/dataset";
 import { equalityLine, modelAxis } from "../lib/model-plot";
 import { modelRates, modelSearch, probabilityBands, type ModelMetric, type ModelScope, type ModelStudy } from "../lib/model-study";
 import { count, decimal, displayDate, isSmallSample, percentage } from "../lib/shots";
+import { playerProfileLink } from "../lib/player-profile";
 import { useArchiveQuery } from "../lib/use-archive-query";
+import { useWorkspaceState } from "../lib/use-workspace-state";
 
 type Catalog = Pick<ArchiveCatalog, "source" | "teams" | "games" | "attempts" | "scored" | "retrospective" | "earliestScore" | "scoredStart" | "scoredEnd">;
 type Player = ModelStudy["players"][number];
@@ -71,16 +74,21 @@ function PlayerPlot({ players, active, metric, scale, onSelect }: { players: Pla
   </figure>;
 }
 
-export function ShotModel({ catalog, entry, initial }: { catalog: Catalog; entry: { scope: ModelScope; player: string; minimum: string }; initial: { query: string; data: ModelStudy } }) {
-  const [scope, setScope] = useState(entry.scope);
-  const [metric, setMetric] = useState<ModelMetric>("fg");
-  const [scale, setScale] = useState<Scale>("spread");
-  const [minimum, setMinimum] = useState(entry.minimum);
-  const [selected, setSelected] = useState(entry.player);
-  const [order, setOrder] = useState("attempts");
-  const [page, setPage] = useState(0);
+const views = [{ value: "overview", label: "Model overview" }, { value: "range", label: "Expected FG range" }] as const;
+
+export function ShotModel({ catalog, entry, initial, names, openFresh }: { catalog: Catalog; openFresh: boolean; names: Record<string, string>; entry: { scope: ModelScope; player: string; minimum: string }; initial: { query: string; data: ModelStudy } }) {
+  const [{ scope, view, metric, scale, minimum, selected, order, page }, setTab] = useWorkspaceState("model", {
+    scope: entry.scope,
+    view: "overview" as (typeof views)[number]["value"],
+    metric: "fg" as ModelMetric,
+    scale: "spread" as Scale,
+    minimum: entry.minimum,
+    selected: entry.player,
+    order: "attempts",
+    page: 0,
+  }, openFresh);
   const reduce = useReducedMotion();
-  const archive = useArchiveQuery(modelSearch(scope), initial);
+  const archive = useArchiveQuery(view === "overview" ? modelSearch(scope) : "", initial);
   const games = catalog.games.filter(game => (scope.window === "full" || game.date >= catalog.scoredStart) && (!scope.team || game.teams.includes(scope.team)));
   const eligible = useMemo(() => archive.data?.players.filter(player => player.attempts >= Number(minimum)) ?? [], [archive.data, minimum]);
   const ranked = useMemo(() => [...eligible].sort((a, b) => {
@@ -99,8 +107,8 @@ export function ShotModel({ catalog, entry, initial }: { catalog: Catalog; entry
   const unit = metric === "fg" ? "FG%" : "PPS";
 
   function updateScope(next: ModelScope) {
-    setScope(next);
-    setPage(0);
+    setTab("scope", next);
+    setTab("page", 0);
   }
 
   return <>
@@ -108,52 +116,56 @@ export function ShotModel({ catalog, entry, initial }: { catalog: Catalog; entry
       <div className="heading-meta model-window"><CalendarDays size={16} aria-hidden="true" />{catalog.source === "archive" ? fullArchive ? "Full archive" : "Holdout" : "Scored sample"} · {displayDate(fullArchive ? catalog.earliestScore : catalog.scoredStart, fullArchive)} – {displayDate(catalog.scoredEnd, true)}</div>
     </PageHeader>
 
+    <nav className="model-view-nav" aria-label="Model views"><Segment label="Model view" options={views} value={view} onChange={next => setTab("view", next)} /></nav>
     <section className="panel controls-panel" aria-label="Model comparison filters">
-      <div className="controls-row model-controls" data-archive={catalog.retrospective > 0}>
-        <div className="field"><span>Metric</span><Segment label="Model metric" options={metrics} value={metric} onChange={value => { setMetric(value); setPage(0); }} /></div>
+      <div className="controls-row model-controls" data-archive={catalog.retrospective > 0} data-range={view === "range"}>
+        {view === "overview" && <div className="field"><span>Metric</span><Segment label="Model metric" options={metrics} value={metric} onChange={value => { setTab("metric", value); setTab("page", 0); }} /></div>}
         {catalog.retrospective > 0 && <SelectField label="Scoring window" value={scope.window} onChange={event => {
           const window = event.target.value === "holdout" ? "holdout" : "full";
           const dropGame = window === "holdout" && game && game.date < catalog.scoredStart;
-          if (dropGame) setMinimum("20");
+          if (dropGame) setTab("minimum", "20");
           updateScope({ ...scope, window, game: dropGame ? "" : scope.game });
         }}><option value="full">Full archive</option><option value="holdout">Holdout only</option></SelectField>}
         <SelectField label="Team" value={scope.team} onChange={event => {
           const team = event.target.value;
           const nextGame = !team || game?.teams.includes(team) ? scope.game : "";
-          if (scope.game && !nextGame) setMinimum("20");
+          if (scope.game && !nextGame) setTab("minimum", "20");
           updateScope({ ...scope, team, game: nextGame });
         }}><option value="">All teams</option>{Object.entries(catalog.teams).map(([code, team]) => <option key={code} value={code}>{team.name}</option>)}</SelectField>
         <SelectField label="Game" value={scope.game} onChange={event => {
           const game = event.target.value;
-          if (game && !scope.game) setMinimum("1");
-          if (!game && scope.game) setMinimum("20");
+          if (game && !scope.game) setTab("minimum", "1");
+          if (!game && scope.game) setTab("minimum", "20");
           updateScope({ ...scope, game });
         }}><option value="">All scored games</option>{games.map(game => <option key={game.id} value={game.id}>{displayDate(game.date)} · {gameLabel(game)}</option>)}</SelectField>
         <SelectField label="Shot value" value={scope.value} onChange={event => updateScope({ ...scope, value: event.target.value })}><option value="">2PT + 3PT</option><option value="2">2PT</option><option value="3">3PT</option></SelectField>
-        <SelectField label="Minimum shots" value={minimum} onChange={event => { setMinimum(event.target.value); setPage(0); }}><option value="1">1+</option><option value="10">10+</option><option value="20">20+</option><option value="50">50+</option><option value="100">100+</option></SelectField>
+        {view === "overview" && <SelectField label="Minimum shots" value={minimum} onChange={event => { setTab("minimum", event.target.value); setTab("page", 0); }}><option value="1">1+</option><option value="10">10+</option><option value="20">20+</option><option value="50">50+</option><option value="100">100+</option></SelectField>}
       </div>
       {fullArchive && <p className="model-window-note">Estimates before {displayDate(catalog.scoredStart, true)} are retrospective and use games the model was fitted on. Use Holdout only to compare on unseen games.</p>}
     </section>
 
-    {archive.pending ? <p className="archive-status" role="status">Loading model comparisons…</p> : archive.error ? <p className="archive-status" role="alert">Couldn’t load model comparisons. <Button variant="ghost" onClick={archive.retry}>Retry</Button></p> : focus && playerRate && poolRate ? <>
+    {view === "range" ? <ModelRangeRanking scope={scope} names={names} /> : archive.pending ? <p className="archive-status" role="status">Loading model comparisons…</p> : archive.error ? <p className="archive-status" role="alert">Couldn’t load model comparisons. <Button variant="ghost" onClick={archive.retry}>Retry</Button></p> : focus && playerRate && poolRate ? <>
       <div className="model-analysis">
         <section className="panel model-chart" aria-label="Actual versus expected">
-          <PanelHeader title={`Actual vs. expected ${unit}`} description={<><AnimatedNumber value={eligible.length} /> players · <AnimatedNumber value={archive.data?.pool.attempts ?? 0} /> scored attempts in scope</>}><Segment label="Plot scale" options={scales} value={scale} onChange={setScale} /></PanelHeader>
-          <PlayerPlot players={eligible} active={focus} metric={metric} scale={scale} onSelect={setSelected} />
+          <PanelHeader title={`Actual vs. expected ${unit}`} description={<><AnimatedNumber value={eligible.length} /> players · <AnimatedNumber value={archive.data?.pool.attempts ?? 0} /> scored attempts in scope</>}><Segment label="Plot scale" options={scales} value={scale} onChange={next => setTab("scale", next)} /></PanelHeader>
+          <PlayerPlot players={eligible} active={focus} metric={metric} scale={scale} onSelect={next => setTab("selected", next)} />
         </section>
 
         <section className="panel model-profile" aria-label="Selected player's model profile">
           <PanelHeader title="Player profile" />
           <div className="model-profile-body">
-            <SelectField label="Highlight player" value={focus.name} onChange={event => setSelected(event.target.value)}>{eligible.map(player => <option key={player.name}>{player.name}</option>)}</SelectField>
-            <div className="model-profile-name"><div><h3>{focus.name}</h3><p>{focus.teams.join(" · ")} · <AnimatedNumber value={focus.attempts} /> shots</p></div>{isSmallSample(focus.attempts) && <Badge tone="warning">Small sample</Badge>}</div>
+            <SelectField label="Highlight player" value={focus.name} onChange={event => setTab("selected", event.target.value)}>{eligible.map(player => <option key={player.name}>{player.name}</option>)}</SelectField>
+            <div className="model-profile-name"><div><h3>{names[focus.name] ?? focus.name}</h3><p>{focus.teams.join(" · ")} · <AnimatedNumber value={focus.attempts} /> shots</p></div>{isSmallSample(focus.attempts) && <Badge tone="warning">Small sample</Badge>}</div>
             <dl className="model-profile-rates">
               <div><dt>Expected {unit}</dt><dd><Rate value={playerRate.expected} metric={metric} /></dd></div>
               <div><dt>Actual {unit}</dt><dd><Rate value={playerRate.actual} metric={metric} /></dd></div>
               <div><dt>Actual − expected</dt><dd><Gap value={playerRate.gap} metric={metric} /></dd></div>
             </dl>
             <p className="model-pool">Across this scope, the model expected <strong><Rate value={poolRate.expected} metric={metric} /></strong> and the results were <strong><Rate value={poolRate.actual} metric={metric} /></strong>.</p>
-            <Link className="button" href={labLink(scope, focus.name)} prefetch={false}>View scored shots <ArrowUpRight size={15} aria-hidden="true" /></Link>
+            <div className="profile-actions">
+              <Link className="button" href={playerProfileLink(focus.name, { ...scope, scored: "1" })} prefetch={false}>Open player sheet <ArrowUpRight size={15} aria-hidden="true" /></Link>
+              <Link className="model-table-link" href={labLink(scope, focus.name)} prefetch={false}>View scored shots <ArrowUpRight size={15} aria-hidden="true" /></Link>
+            </div>
           </div>
         </section>
       </div>
@@ -176,24 +188,25 @@ export function ShotModel({ catalog, entry, initial }: { catalog: Catalog; entry
       </section>
 
       <section className="panel model-ranking" aria-label="Compare players">
-        <PanelHeader title="Compare players"><SelectField label="Sort by" value={order} onChange={event => { setOrder(event.target.value); setPage(0); }}>
+        <PanelHeader title="Compare players"><SelectField label="Sort by" value={order} onChange={event => { setTab("order", event.target.value); setTab("page", 0); }}>
           <option value="attempts">Most shots</option><option value="expected">Highest expected</option><option value="above">Most above expected</option><option value="below">Most below expected</option>
         </SelectField></PanelHeader>
         <div className="table-scroll"><table className="model-table">
-          <thead><tr><th scope="col">Player</th><th scope="col">Shots</th><th scope="col">Expected {unit}</th><th scope="col">Actual {unit}</th><th scope="col">Difference</th></tr></thead>
+          <thead><tr><th scope="col">Player</th><th scope="col">Shots</th><th scope="col">Expected {unit}</th><th scope="col">Actual {unit}</th><th scope="col">Difference</th><th scope="col"><span className="sr-only">Player sheet</span></th></tr></thead>
           <tbody>{ranked.slice(start, start + perPage).map(player => {
             const rate = modelRates(player, metric);
             return <tr key={player.name} data-selected={player.name === focus.name}>
-              <th scope="row"><button type="button" className="model-rank-player" aria-pressed={player.name === focus.name} onClick={() => setSelected(player.name)}>{player.name}<small>{player.teams.join(" · ")}{isSmallSample(player.attempts) ? " · Small sample" : ""}</small></button></th>
+              <th scope="row"><button type="button" className="model-rank-player" aria-pressed={player.name === focus.name} onClick={() => setTab("selected", player.name)}>{names[player.name] ?? player.name}<small>{player.teams.join(" · ")}{isSmallSample(player.attempts) ? " · Small sample" : ""}</small></button></th>
               <td><AnimatedNumber value={player.attempts} /></td><td><Rate value={rate.expected} metric={metric} /></td><td><Rate value={rate.actual} metric={metric} /></td><td><Gap value={rate.gap} metric={metric} /></td>
+              <td><Link className="model-table-link" href={playerProfileLink(player.name, { ...scope, scored: "1" })} aria-label={`Open player sheet for ${names[player.name] ?? player.name}`} prefetch={false}>Player sheet <ArrowUpRight size={13} aria-hidden="true" /></Link></td>
             </tr>;
           })}</tbody>
         </table></div>
-        <div className="list-footer"><span>{start + 1}–{Math.min(start + perPage, ranked.length)} of {count(ranked.length)} players</span><div><Button variant="icon" aria-label="Previous players" disabled={!currentPage} onClick={() => setPage(currentPage - 1)}><ChevronLeft size={16} /></Button><Button variant="icon" aria-label="Next players" disabled={start + perPage >= ranked.length} onClick={() => setPage(currentPage + 1)}><ChevronRight size={16} /></Button></div></div>
+        <div className="list-footer"><span>{start + 1}–{Math.min(start + perPage, ranked.length)} of {count(ranked.length)} players</span><div><Button variant="icon" aria-label="Previous players" disabled={!currentPage} onClick={() => setTab("page", currentPage - 1)}><ChevronLeft size={16} /></Button><Button variant="icon" aria-label="Next players" disabled={start + perPage >= ranked.length} onClick={() => setTab("page", currentPage + 1)}><ChevronRight size={16} /></Button></div></div>
       </section>
     </> : <section className="panel"><EmptyState title="No players in this sample">Lower the minimum attempts, choose all shot values, or broaden the game filter.</EmptyState></section>}
 
-    <p className="metric-note">Actual and expected use the same scored shots. The model uses shot context and shooter history. Expected FG% averages make probabilities, and expected PPS weights them by the shot’s point value. The gap can reflect finishing, variation, and model error.</p>
+    {view === "overview" && <p className="metric-note">Actual and expected use the same scored shots. The model uses shot context and shooter history. Expected FG% averages make probabilities, and expected PPS weights them by the shot’s point value. The gap can reflect finishing, variation, and model error.</p>}
     {catalog.source === "archive" && <p className="metric-note model-coverage"><AnimatedNumber value={catalog.scored} /> of <AnimatedNumber value={catalog.attempts} /> archived attempts have model estimates, including <AnimatedNumber value={catalog.scored - catalog.retrospective} /> holdout predictions.</p>}
   </>;
 }

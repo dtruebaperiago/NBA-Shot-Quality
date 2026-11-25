@@ -13,6 +13,7 @@ import { Button, Segment } from "./ui";
 type PlotSide = "a" | "b";
 type Mark = { shot: Shot; location: NonNullable<ReturnType<typeof courtPosition>>; sides: PlotSide[] };
 type ScreenMark = { mark: Mark; point: PointOnScreen };
+type ScreenBin = { bin: ShotBin; point: PointOnScreen; radius: number };
 type Playback = { shots: Mark[]; timing: ReturnType<typeof flightTiming>; still: boolean };
 const cameraOptions = [{ value: "spatial", label: "3D", icon: <Box size={14} /> }, { value: "overhead", label: "Top down", icon: <Crosshair size={14} /> }] as const;
 const reducedMotionQuery = "(prefers-reduced-motion: reduce)";
@@ -23,10 +24,12 @@ function subscribeReducedMotion(notify: () => void) {
   return () => media.removeEventListener("change", notify);
 }
 
-export function Court({ first, second, density, selected, player, comparisonPlayer, view, onViewChange, onSelect, ready = true }: {
+export function Court({ first, second, density, selectedBin, selected, player, comparisonPlayer, view, onViewChange, onSelect, onSelectBin, ready = true }: {
   first: Shot[];
   second: Shot[];
   density?: ShotBin[];
+  selectedBin?: string;
+  onSelectBin?: (id: string) => void;
   selected: string | undefined;
   player: string;
   comparisonPlayer?: string;
@@ -37,6 +40,7 @@ export function Court({ first, second, density, selected, player, comparisonPlay
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const screenMarks = useRef<ScreenMark[]>([]);
+  const screenBins = useRef<ScreenBin[]>([]);
   const renderFrame = useRef<() => void>(() => {});
   const playback = useRef<Playback | null>(null);
   const controller = useRef<AnimationPlaybackControls | null>(null);
@@ -115,12 +119,15 @@ export function Court({ first, second, density, selected, player, comparisonPlay
       const markerSize = width < 420 ? 3 : 4;
       const bg = staticContext!;
 
-      for (const bin of density ?? []) {
+      const bins = (density ?? []).map(bin => ({
+        bin,
+        point: camera.project([bin.x, bin.y, 0]),
+        radius: Math.min(11, 2 + Math.log1p(bin.makes + bin.misses)),
+      }));
+      for (const { bin, point: [x, y], radius } of bins) {
         const size = bin.makes + bin.misses;
-        const [x, y] = camera.project([bin.x, bin.y, 0]);
-        const radius = Math.min(11, 2 + Math.log1p(size));
         let angle = 0;
-        bg.globalAlpha = .54;
+        bg.globalAlpha = bin.id === selectedBin ? .95 : .54;
         for (const [index, shots] of [bin.misses, bin.makes].entries()) {
           if (!shots) continue;
           const end = angle + (shots / size) * Math.PI * 2;
@@ -134,6 +141,15 @@ export function Court({ first, second, density, selected, player, comparisonPlay
         }
       }
       bg.globalAlpha = 1;
+      const activeBin = bins.find(({ bin }) => bin.id === selectedBin);
+      if (activeBin) {
+        bg.beginPath();
+        bg.arc(...activeBin.point, activeBin.radius + 2, 0, Math.PI * 2);
+        bg.strokeStyle = token("--plot-selection");
+        bg.lineWidth = 2;
+        bg.stroke();
+      }
+      screenBins.current = bins;
 
       function drawMarker({ mark, point: [x, y] }: ScreenMark) {
         const active = mark === chosen;
@@ -265,18 +281,26 @@ export function Court({ first, second, density, selected, player, comparisonPlay
     const unsubscribeClock = clock.on("change", () => renderFrame.current());
     build();
     return () => { observer.disconnect(); themeObserver.disconnect(); unsubscribeYaw(); unsubscribeClock(); renderFrame.current = () => {}; };
-  }, [chosen, clock, density, marks, view, yaw]);
+  }, [chosen, clock, density, marks, selectedBin, view, yaw]);
 
   function nearest(clientX: number, clientY: number) {
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
-    let best: Mark | undefined;
-    let distance = 11;
-    for (const { mark, point: [x, y] } of screenMarks.current) {
-      const candidate = Math.hypot(x - (clientX - rect.left), y - (clientY - rect.top));
-      if (candidate < distance) { best = mark; distance = candidate; }
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    let hit: { mark: Mark } | { bin: ShotBin } | undefined;
+    let distance = Infinity;
+    for (const { mark, point } of screenMarks.current) {
+      const candidate = Math.hypot(point[0] - x, point[1] - y);
+      if (candidate < 11 && candidate < distance) { hit = { mark }; distance = candidate; }
     }
-    return best;
+    if (onSelectBin) {
+      for (const { bin, point, radius } of screenBins.current) {
+        const candidate = Math.hypot(point[0] - x, point[1] - y);
+        if (candidate <= radius + 4 && candidate < distance) { hit = { bin }; distance = candidate; }
+      }
+    }
+    return hit;
   }
 
   function rotate(by: number) {
@@ -298,7 +322,7 @@ export function Court({ first, second, density, selected, player, comparisonPlay
       </div>
     </div>
     <div className="court-frame" data-view={view}>
-      <canvas ref={canvasRef} className="shot-court" role="img" aria-label={density ? "Frontcourt shot plot. Benchmark bins show the mix of makes and misses. Use the shot list to select individual benchmark shots." : "Frontcourt shot plot. Circles are makes and crosses are misses. Flight paths are illustrative. Use the shot list for keyboard selection."}
+      <canvas ref={canvasRef} className="shot-court" role="img" aria-label={density ? "Frontcourt shot plot. Select a benchmark bin on the court or use the Benchmark bin menu to browse its shots." : "Frontcourt shot plot. Circles are makes and crosses are misses. Flight paths are illustrative. Use the shot list for keyboard selection."}
         onPointerDown={event => {
           skipClick.current = false;
           if (view !== "spatial" || event.button !== 0) return;
@@ -320,8 +344,9 @@ export function Court({ first, second, density, selected, player, comparisonPlay
           if (skipClick.current) return;
           const hit = nearest(event.clientX, event.clientY);
           if (!hit) return;
-          if (hit === chosen) play([hit]);
-          else onSelect(hit.shot);
+          if ("bin" in hit) onSelectBin?.(hit.bin.id);
+          else if (hit.mark === chosen) play([hit.mark]);
+          else onSelect(hit.mark.shot);
         }} />
       <span className="flight-note">Illustrative shot paths</span>
       {playing && <motion.span className="flight-progress" style={{ scaleX: clock }} aria-hidden="true" />}

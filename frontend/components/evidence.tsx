@@ -1,7 +1,9 @@
 "use client";
 
 import { ArrowDownRight, ArrowUpRight, ChevronLeft, ChevronRight, ListFilter } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
+import { playerProfileLink } from "../lib/player-profile";
 import { shotPageSize } from "../lib/archive-query";
 import { count, displayDate, gameClock, isSmallSample, shotDistance, smallSampleThreshold, summarize, type Shot } from "../lib/shots";
 import { AnimatedNumber } from "./animated-number";
@@ -21,20 +23,20 @@ export function CohortMetrics({ side, title, context, shots, totals = summarize(
       <span className="cohort-attempts"><strong><AnimatedNumber value={totals.attempts} /></strong> <span>shots</span></span>
     </header>
     <dl className="metric-grid">
+      <div className="cohort-headline"><dt>Actual FG%</dt><dd><AnimatedNumber format="percentage" value={totals.fg} /></dd></div>
+      <div><dt>Expected FG%</dt><dd><AnimatedNumber format="percentage" value={totals.expectedFg} /></dd></div>
       <div><dt>Actual PPS</dt><dd><AnimatedNumber format="decimal" value={totals.pps} /></dd></div>
       <div><dt>Expected PPS</dt><dd><AnimatedNumber format="decimal" value={totals.expectedPps} /></dd></div>
-      <div><dt>Actual FG%</dt><dd><AnimatedNumber format="percentage" value={totals.fg} /></dd></div>
-      <div><dt>Expected FG%</dt><dd><AnimatedNumber format="percentage" value={totals.expectedFg} /></dd></div>
     </dl>
     <div className="cohort-foot"><span>{totals.scored ? <>Expected metrics use <AnimatedNumber value={totals.scored} />{totals.scored < totals.attempts && <> of <AnimatedNumber value={totals.attempts} /></>} shots</> : "Expected metrics unavailable"}</span>{scoredSmall && !small && <Badge tone="warning" title={`Fewer than ${smallSampleThreshold} attempts have a model estimate. Actual metrics still use every matching attempt.`}>Few model-scored shots</Badge>}</div>
   </section>;
 }
 
-export function ShotDetails({ shot }: { shot: Shot }) {
+export function ShotDetails({ shot, linkPlayer = true }: { shot: Shot; linkPlayer?: boolean }) {
   const { distance, fromCourt } = shotDistance(shot);
 
   return <div className="shot-details">
-    <div className="shot-summary"><div><strong>{shot.player}</strong><span>{shot.team} vs {shot.opponent} · {displayDate(shot.date, true)}</span></div><Badge tone={shot.made ? "positive" : "neutral"}>{shot.made ? "Made" : "Missed"} {shot.value}PT</Badge></div>
+    <div className="shot-summary"><div><strong>{linkPlayer ? <Link className="shot-player-link" href={playerProfileLink(shot.player)} prefetch={false}>{shot.player}</Link> : shot.player}</strong><span>{shot.team} vs {shot.opponent} · {displayDate(shot.date, true)}</span></div><Badge tone={shot.made ? "positive" : "neutral"}>{shot.made ? "Made" : "Missed"} {shot.value}PT</Badge></div>
     <div className="shot-probability">
       <span>Expected make</span>
       <strong><AnimatedNumber format="percentage" value={shot.probability} /></strong>

@@ -8,6 +8,7 @@ import { Badge, Button, Dialog, EmptyState, PanelHeader, Segment, SelectField } 
 import { count, displayDate, isSmallSample, percentage, type Shot } from "../lib/shots";
 import { matchingEdge, rankingRate, scoutDimension, scoutRates, teamEvidenceSearch, teamScoutSearch, type ScoutDates, type ScoutDimension, type ScoutMeasure, type ScoutSide, type ScoutTotals, type TeamEvidence, type TeamScoutReport } from "../lib/team-scout";
 import { useArchiveQuery } from "../lib/use-archive-query";
+import { useWorkspaceState } from "../lib/use-workspace-state";
 
 const sides = [{ value: "shooting", label: "Our shooting" }, { value: "allowed", label: "Shots allowed" }] as const;
 const directions = [{ value: "own", label: "Our offense" }, { value: "opponent", label: "Opponent offense" }] as const;
@@ -62,10 +63,12 @@ export function TeamScoutReview({ view, own, opponent, dates, range, scoredStart
   onAdd: (finding: ScoutDraftFinding) => void;
   onEvidence: (link: ScoutEvidenceLink) => void;
 }) {
-  const [teamSide, setSide] = useState<ScoutSide>("allowed");
-  const [direction, setDirection] = useState<"own" | "opponent">("opponent");
-  const [dimension, setDimension] = useState<ScoutDimension>("zone");
-  const [selectedMeasure, setMeasure] = useState<ScoutMeasure>(view === "matchup" ? "expected" : "actual");
+  const [{ teamSide, direction, dimension, selectedMeasure }, setTab] = useWorkspaceState("scout-" + view, {
+    teamSide: "allowed" as ScoutSide,
+    direction: "opponent" as "own" | "opponent",
+    dimension: "zone" as ScoutDimension,
+    selectedMeasure: (view === "matchup" ? "expected" : "actual") as ScoutMeasure,
+  });
   const earlyPregame = Boolean(dates.before && dates.before < scoredStart);
   const measure = earlyPregame ? "actual" : selectedMeasure;
   const matchup = view === "matchup";
@@ -84,9 +87,9 @@ export function TeamScoutReview({ view, own, opponent, dates, range, scoredStart
   }
 
   const controls = <div className="team-scout-controls">
-    {matchup ? <Segment label="Matchup direction" value={direction} options={directions} onChange={setDirection} /> : !opponentReview && <Segment label="Team scout perspective" value={side} options={sides} onChange={setSide} />}
-    <SelectField label="Break down by" value={dimension} onChange={event => setDimension(scoutDimension(event.target.value))}><option value="zone">Court zone</option><option value="family">Shot type</option><option value="space">Defender distance</option></SelectField>
-    <SelectField label="Rank by" value={measure} onChange={event => setMeasure(event.target.value as ScoutMeasure)}><option value="actual">Actual FG%</option><option value="expected" disabled={earlyPregame}>Expected FG%</option><option value="gap" disabled={earlyPregame}>Actual − expected</option></SelectField>
+    {matchup ? <Segment label="Matchup direction" value={direction} options={directions} onChange={next => setTab("direction", next)} /> : !opponentReview && <Segment label="Team scout perspective" value={side} options={sides} onChange={next => setTab("teamSide", next)} />}
+    <SelectField label="Break down by" value={dimension} onChange={event => setTab("dimension", scoutDimension(event.target.value))}><option value="zone">Court zone</option><option value="family">Shot type</option><option value="space">Defender distance</option></SelectField>
+    <SelectField label="Rank by" value={measure} onChange={event => setTab("selectedMeasure", event.target.value as ScoutMeasure)}><option value="actual">Actual FG%</option><option value="expected" disabled={earlyPregame}>Expected FG%</option><option value="gap" disabled={earlyPregame}>Actual − expected</option></SelectField>
   </div>;
 
   if (!data) return <section className="panel team-scout-panel"><PanelHeader title={matchup ? "Matchup" : reviewTitle} description={range} />{controls}

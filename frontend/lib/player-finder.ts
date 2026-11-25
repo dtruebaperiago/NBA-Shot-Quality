@@ -87,9 +87,10 @@ export function playerFinderShots(shots: Shot[], scope: FinderScope, filters: Sh
   return playerShots.filter(shot => (scope.window !== "holdout" || shot.date >= holdoutStart) && (scope.pool !== "outside" || shot.team !== scope.team) && matchesShotFilters(shot, filters));
 }
 
-export function rankFinderPlayers(players: FinderReport["players"], order: FinderSort, minimum: number, name: string, team: string) {
-  const query = name.trim().toLowerCase();
+export function rankFinderPlayers(players: FinderReport["players"], order: FinderSort, minimum: number, name: string, team: string, names: Record<string, string> = {}) {
+  const normalize = (text: string) => text.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
+  const query = normalize(name.trim());
   const usesModel = order === "expectedPps" || order === "expectedFg" || order === "gap";
-  return players.filter(player => (usesModel ? player.scored : player.attempts) >= minimum && (!team || player.team === team) && player.name.toLowerCase().includes(query))
+  return players.filter(player => (usesModel ? player.scored : player.attempts) >= minimum && (!team || player.team === team) && (normalize(player.name).includes(query) || normalize(names[player.name] ?? player.name).includes(query)))
     .sort((a, b) => (b[order] ?? -Infinity) - (a[order] ?? -Infinity) || b.attempts - a.attempts || a.name.localeCompare(b.name));
 }

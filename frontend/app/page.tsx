@@ -20,5 +20,6 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
   };
   const scope = { player: entry.player, team, game: entry.game, start: entry.dateRange === "all" ? catalog.start : catalog.scoredStart, end: catalog.end, comparison: "", benchmark: "" };
   const query = labSearch(scope);
-  return <ShotLab key={JSON.stringify(entry)} dataset={catalog} entry={entry} initial={{ query, data: selectLabShots(getDataset().shots, scope) }} />;
+  const openFresh = Boolean(selected || team || game || entry.value || entry.band || entry.model || params.window === "full" || params.window === "holdout");
+  return <ShotLab key={JSON.stringify([openFresh, entry])} openFresh={openFresh} dataset={catalog} entry={entry} initial={{ query, data: selectLabShots(getDataset().shots, scope) }} />;
 }

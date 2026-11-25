@@ -95,7 +95,7 @@ export function withShotValue(filters: ShotFilters, value: ShotValueFilter, opti
 
 export type Team = { name: string; color: string; city: string; mark: string };
 export type Dataset = {
-  source: "archive" | "sample";
+  source: "archive";
   label: string;
   start: string;
   end: string;

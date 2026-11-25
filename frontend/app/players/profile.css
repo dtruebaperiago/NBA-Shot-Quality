@@ -1,0 +1,32 @@
+.player-page { display: grid; gap: var(--report-gap); }
+.player-back { justify-self: start; }
+.player-masthead { display: flex; flex-wrap: wrap-reverse; align-items: end; justify-content: space-between; gap: var(--space-6); padding-block-end: var(--space-4); border-bottom: 1px solid var(--line); }
+.player-masthead .page-heading { margin: 0; }
+.player-masthead .page-heading h1 { font-size: clamp(2.75rem, 6vw, 5.75rem); }
+.player-portrait { display: grid; place-items: center; align-self: end; width: clamp(130px, 23vw, 230px); aspect-ratio: 26 / 19; overflow: hidden; color: var(--moss); background: var(--moss-soft); }
+.player-portrait img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.player-portrait > span { font: 700 clamp(2.7rem, 7vw, 5.1rem)/1 var(--font-display); }
+.player-report > .panel-header, .player-lab > .panel-header { border-bottom: 1px solid var(--line); }
+.player-metrics, .player-box-score { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); gap: var(--space-6); margin: 0; padding: clamp(16px, 3vw, 36px); }
+.player-metrics dt, .player-box-score dt { font-size: .83rem; color: var(--muted); font-weight: 700; }
+.player-metrics dd, .player-box-score dd { margin: var(--space-1) 0 0; font: 500 clamp(2.2rem, 4.5vw, 4rem)/1.05 var(--font-data); }
+.player-metrics > div:first-child dd:not(.player-stat-total) { color: var(--moss); }
+.player-box-score dd { font-size: clamp(1.55rem, 2.6vw, 2.5rem); }
+.player-box-score dd small { font: 500 .75rem var(--font-body); color: var(--muted); white-space: nowrap; }
+.player-metrics .player-stat-total, .player-box-score .player-stat-total { font: 500 .79rem/1.4 var(--font-body); color: var(--muted); }
+.player-source { padding: var(--space-3) var(--space-6) var(--space-4); font-size: .77rem; color: var(--muted); }
+.player-source a { color: var(--moss); text-underline-offset: 3px; }
+.player-lab-controls { display: grid; gap: var(--space-3); padding: var(--space-6); }
+.player-lab-controls .button { justify-self: start; }
+.player-lab > .court-viewer { padding-inline: var(--space-6); }
+.player-lab .shot-court { height: clamp(306px, 48vw, 520px); }
+.player-lab .court-frame[data-view="spatial"] .shot-court { height: clamp(320px, 53vw, 550px); }
+.player-lab-evidence { margin-top: var(--space-6); border-top: 1px solid var(--line); }
+.player-lab-evidence aside { border-top: 1px solid var(--line); }
+
+@media (max-width: 525px) {
+  .player-masthead { align-items: start; }
+  .player-lab-controls { padding: var(--space-4); }
+  .player-lab > .court-viewer { padding-inline: var(--space-2); }
+  .player-source { padding-inline: var(--space-4); }
+}

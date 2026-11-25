@@ -8,7 +8,7 @@ import "./foundations.css";
 import "./workspace.css";
 import "./model.css";
 import { WorkspaceShell } from "../components/workspace-shell";
-import { getDataset } from "../lib/dataset";
+import { getDataset, getDatasetVersion } from "../lib/dataset";
 
 export const metadata: Metadata = {
   title: { default: "Player Shot Lab · Shot Quality", template: "%s · Shot Quality" },
@@ -21,7 +21,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head><script dangerouslySetInnerHTML={{ __html: initializeTheme }} /></head>
-      <body><WorkspaceShell dataset={getDataset().label}>{children}</WorkspaceShell></body>
+      <body><WorkspaceShell dataset={getDataset().label} archiveVersion={getDatasetVersion()}>{children}</WorkspaceShell></body>
     </html>
   );
 }

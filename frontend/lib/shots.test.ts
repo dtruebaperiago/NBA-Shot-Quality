@@ -3,7 +3,8 @@ import test from "node:test";
 import { courtCamera, flightPoint, flightTiming, rimHeight } from "./court-scene.ts";
 import { benchmarkEvidence, benchmarkReport, selectLabShots, shotPageSize } from "./archive-query.ts";
 import { equalityLine, modelAxis } from "./model-plot.ts";
-import { modelRates, shotBand, studyShots } from "./model-study.ts";
+import { modelRates, parseProbabilityRange, shotBand, studyShots } from "./model-study.ts";
+import { profileShots, trackedShooting, type PlayerPositions } from "./player-profile.ts";
 import { playerFinder, playerFinderShots, rankFinderPlayers, type FinderScope } from "./player-finder.ts";
 import { matchupOpponent, pregameShooters, rankTendencies, scoutEvidence, scoutTendencies, trackedTeamHistory } from "./scout-tendencies.ts";
 import { matchingEdge, scoutRates, teamScout, teamScoutEvidence, type ScoutTotals } from "./team-scout.ts";
@@ -25,7 +26,7 @@ test("dense benchmark totals, court bins and evidence use the same filtered shot
   assert.equal(report.first.length, 1);
   assert.equal(report.totals.attempts, bench.length);
   assert.equal(report.totals.fg, .5);
-  assert.deepEqual(report.density, [{ x: example.x, y: example.y, makes: 1005, misses: 1005 }]);
+  assert.deepEqual(report.density, [{ id: "0,0", x: example.x, y: example.y, makes: 1005, misses: 1005 }]);
   assert.equal(report.plottedSecond, bench.length);
   const page = benchmarkEvidence(shots, scope, filters, { index: 1, a: false, b: true });
   assert.equal(page.total, bench.length);
@@ -319,4 +320,77 @@ test("changing shot value clears incompatible selections and preserves compatibl
   assert.deepEqual(withShotValue(filters, "3", options), { ...filters, value: "3", zone: "", family: "", distance: "" });
   assert.deepEqual(withShotValue({ ...filters, family: "Jump shot" }, "3", options), { ...filters, value: "3", zone: "", family: "Jump shot", distance: "" });
   assert.deepEqual(withShotValue(filters, "", options), { ...filters, value: "" });
+});
+
+
+test("position benchmarks exclude the selected player and unknown roles in totals and evidence", () => {
+  const shots = [
+    example,
+    { ...example, id: "peer", team: "B", player: "Peer" },
+    { ...example, id: "center", team: "B", player: "Center" },
+    { ...example, id: "unknown", team: "B", player: "Unknown" },
+    { ...example, id: "outside-window", game: "other", team: "B", player: "Peer" },
+  ];
+  const positions: PlayerPositions = { Player: "position:guard", Peer: "position:guard", Center: "position:center" };
+  const scope = { player: example.player, team: "A", game: example.game, start: example.date, end: example.date, comparison: "", benchmark: "position:guard" };
+  const filters = { first: emptyShotFilters, second: emptyShotFilters, band: "", scoredOnly: false };
+  const report = benchmarkReport(shots, scope, filters, positions);
+  assert.deepEqual(report.first.map(shot => shot.id), [example.id]);
+  assert.deepEqual(report.second.map(shot => shot.id), ["peer"]);
+  assert.equal(report.totals.attempts, 1);
+  assert.deepEqual(benchmarkEvidence(shots, scope, filters, { index: 0, a: false, b: true }, positions).rows.map(shot => shot.id), ["peer"]);
+});
+
+test("benchmark bin evidence pages only the plotted shots that belong to that bin", () => {
+  const nearby = Array.from({ length: shotPageSize + 2 }, (_, index) => ({
+    ...example, id: "nearby-" + String(index).padStart(2, "0"), player: "Peer", x: 38 + index % 5, y: 3000 + index,
+  }));
+  const others = Array.from({ length: 2_000 }, (_, index) => ({ ...example, id: "elsewhere-" + index, player: "Peer" }));
+  const shots = [example, ...nearby, ...others, { ...example, id: "unplotted", player: "Peer", x: null }];
+  const scope = { player: example.player, team: "", game: "", start: example.date, end: example.date, comparison: "", benchmark: "pool" };
+  const options = { first: emptyShotFilters, second: emptyShotFilters, band: "", scoredOnly: false };
+  const report = benchmarkReport(shots, scope, options);
+  const bin = report.density?.find(item => item.id === "2,18");
+  assert.ok(bin);
+  assert.equal(bin.makes + bin.misses, nearby.length);
+  const first = benchmarkEvidence(shots, scope, options, { bin: bin.id, index: 0, a: true, b: true });
+  const next = benchmarkEvidence(shots, scope, options, { bin: bin.id, index: 1, a: true, b: true });
+  assert.equal(first.total, nearby.length);
+  assert.equal(next.total, nearby.length);
+  assert.deepEqual([...first.rows, ...next.rows].map(shot => shot.id), nearby.map(shot => shot.id));
+  assert.equal(benchmarkEvidence(shots, scope, options, { bin: "missing", index: 0, a: true, b: true }).total, 0);
+});
+
+test("expected FG ranges keep exact endpoints and agree with player shot evidence", () => {
+  const range = parseProbabilityRange("0", "20");
+  assert.deepEqual(range, [0, .2]);
+  assert.equal(parseProbabilityRange("20", "0"), undefined);
+  assert.equal(parseProbabilityRange("", "20"), undefined);
+  assert.equal(parseProbabilityRange("0", "101"), undefined);
+  const shots = [
+    { ...example, id: "zero", probability: 0 },
+    { ...example, id: "limit", probability: .2, made: false },
+    { ...example, id: "above", probability: .20001 },
+    { ...example, id: "unscored", probability: null },
+    { ...example, id: "training", probability: .1, date: "2015-01-31" },
+    { ...example, id: "three", probability: .1, value: 3 as const },
+    { ...example, id: "other-team", probability: .1, team: "C" },
+  ];
+  const model = studyShots(shots, { team: "A", game: example.game, value: "2", window: "holdout" }, example.date, range);
+  const matches = profileShots(shots, { ...emptyShotFilters, value: "2" }, { team: "A", game: example.game, from: example.date, range });
+  assert.deepEqual(matches.map(shot => shot.id), ["zero", "limit"]);
+  assert.equal(model.players[0].attempts, matches.length);
+  assert.equal(model.players[0].makes, 1);
+  assert.deepEqual(modelRates(model.players[0], "fg"), { actual: .5, expected: .1, gap: .4 });
+});
+
+test("player shooting separates two-point and three-point rates and shows model coverage", () => {
+  const madeThree = { ...example, id: "three", value: 3 as const, probability: null };
+  const [overall, twos, threes] = trackedShooting([{ ...example, made: false }, madeThree]);
+  assert.equal(overall.fg, .5);
+  assert.equal(overall.effectiveFg, .75);
+  assert.equal(overall.scored, 1);
+  assert.equal(twos.makes, 0);
+  assert.equal(threes.fg, 1);
+  assert.equal(threes.expectedFg, null);
 });

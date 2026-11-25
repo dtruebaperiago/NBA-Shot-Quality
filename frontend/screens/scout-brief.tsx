@@ -14,6 +14,7 @@ import { displayDate, isSmallSample, smallSampleThreshold, type Shot } from "../
 import { useArchiveQuery } from "../lib/use-archive-query";
 import { usePreviewState } from "../lib/use-preview-state";
 import { useScoutingTeam } from "../lib/use-scouting-team";
+import { useWorkspaceState } from "../lib/use-workspace-state";
 
 const modes = [{ value: "pregame", label: "Pregame" }, { value: "retrospective", label: "Team overview" }] as const;
 const views = [{ value: "opponent", label: "Opponent tendencies" }, { value: "team", label: "Your team" }, { value: "matchup", label: "Matchup" }] as const;
@@ -27,20 +28,22 @@ const noShots: Shot[] = [];
 
 export function ScoutBrief({ dataset, archiveVersion, teamHistory, entry, initial }: { dataset: ScoutCatalog; archiveVersion: string; teamHistory: ReturnType<typeof trackedTeamHistory>; entry: { opponent: string; game: string }; initial: { query: string; data: Shot[] } }) {
   const [ownTeam, setOwnTeam] = useScoutingTeam(dataset);
-  const [chosenOpponent, setTeam] = useState(entry.opponent);
-  const [mode, setMode] = useState<Mode>("pregame");
-  const [view, setView] = useState<View>("opponent");
-  const [opponentView, setOpponentView] = useState<(typeof opponentViews)[number]["value"]>("shooting");
-  const [target, setTarget] = useState(entry.game);
-  const [from, setFrom] = useState(dataset.start);
-  const [through, setThrough] = useState(dataset.end);
-  const [ownFrom, setOwnFrom] = useState(dataset.start);
-  const [ownThrough, setOwnThrough] = useState(dataset.end);
+  const [{ chosenOpponent, mode, view, opponentView, target, from, through, ownFrom, ownThrough, showAll, order }, setTab] = useWorkspaceState("scout", {
+    chosenOpponent: entry.opponent,
+    mode: "pregame" as Mode,
+    view: "opponent" as View,
+    opponentView: "shooting" as (typeof opponentViews)[number]["value"],
+    target: entry.game,
+    from: dataset.start,
+    through: dataset.end,
+    ownFrom: dataset.start,
+    ownThrough: dataset.end,
+    showAll: false,
+    order: "balanced" as ScoutOrder,
+  });
   const [evidence, setEvidence] = useState<{ title: string; shots: Shot[] }>();
   const [teamEvidence, setTeamEvidence] = useState<ScoutEvidenceLink>();
   const [publishedOpen, setPublishedOpen] = useState(false);
-  const [showAll, setShowAll] = useState(false);
-  const [order, setOrder] = useState<ScoutOrder>("balanced");
 
   const games = dataset.games.filter(game => game.teams.includes(ownTeam));
   const game = games.find(entry => entry.id === target) ?? games[0];
@@ -72,18 +75,18 @@ export function ScoutBrief({ dataset, archiveVersion, teamHistory, entry, initia
   function selectGame(next: ArchiveGame) {
     const opponent = matchupOpponent(next, ownTeam);
     if (!opponent) return;
-    setTarget(next.id);
-    setTeam(opponent);
-    setShowAll(false);
+    setTab("target", next.id);
+    setTab("chosenOpponent", opponent);
+    setTab("showAll", false);
   }
 
   function changeOwnTeam(next: string) {
     setOwnTeam(next);
     const match = [game, ...dataset.games].find(game => matchupOpponent(game, next));
     const opponent = matchupOpponent(match, next) ?? Object.keys(dataset.teams).find(team => team !== next);
-    setTarget(match?.id ?? "");
-    if (opponent && (isPregame || team === next)) setTeam(opponent);
-    setShowAll(false);
+    setTab("target", match?.id ?? "");
+    if (opponent && (isPregame || team === next)) setTab("chosenOpponent", opponent);
+    setTab("showAll", false);
   }
 
   function captureFinding(finding: Omit<Finding, "version" | "note">) {
@@ -129,12 +132,12 @@ export function ScoutBrief({ dataset, archiveVersion, teamHistory, entry, initia
     <PageHeader title="Opponent Scout Brief" description="Build a brief from the shots behind each tendency.">
       <SelectField label="Your team" className="scout-own-team" value={ownTeam} onChange={event => changeOwnTeam(event.target.value)}>{Object.entries(dataset.teams).map(([id, entry]) => <option key={id} value={id}>{entry.name}</option>)}</SelectField>
     </PageHeader>
-    <nav className="scout-view-nav" aria-label="Scout brief views"><Segment label="Scouting view" options={views} value={view} onChange={setView} /></nav>
+    <nav className="scout-view-nav" aria-label="Scout brief views"><Segment label="Scouting view" options={views} value={view} onChange={next => setTab("view", next)} /></nav>
     {view === "team" ? <>
       <section className="panel controls-panel" aria-label="Your team review dates">
         <div className="date-fields scout-own-dates">
-          <label className="field"><span>From</span><input type="date" min={dataset.start} max={dataset.end} value={ownFrom} onChange={event => setOwnFrom(event.target.value)} /></label>
-          <label className="field"><span>Through</span><input type="date" min={dataset.start} max={dataset.end} value={ownThrough} onChange={event => setOwnThrough(event.target.value)} /></label>
+          <label className="field"><span>From</span><input type="date" min={dataset.start} max={dataset.end} value={ownFrom} onChange={event => setTab("ownFrom", event.target.value)} /></label>
+          <label className="field"><span>Through</span><input type="date" min={dataset.start} max={dataset.end} value={ownThrough} onChange={event => setTab("ownThrough", event.target.value)} /></label>
         </div>
       </section>
       {ownValid ? <TeamScoutReview key="team" view="team" own={ownTeam} opponent="" dates={ownDates} range={`${displayDate(ownFrom, true)} – ${displayDate(ownThrough, true)}`} scoredStart={dataset.scoredStart} archiveVersion={archiveVersion} added={new Set()} onAdd={addReviewFinding} onEvidence={openTeamEvidence} /> : <EmptyState title="Choose valid review dates">Pick a start and end within the archive.</EmptyState>}
@@ -144,16 +147,16 @@ export function ScoutBrief({ dataset, archiveVersion, teamHistory, entry, initia
           const opponent = event.target.value;
           const match = isPregame ? games.find(game => matchupOpponent(game, ownTeam) === opponent) : undefined;
           if (match) selectGame(match);
-          else { setTeam(opponent); setShowAll(false); }
+          else { setTab("chosenOpponent", opponent); setTab("showAll", false); }
         }}>{Object.entries(dataset.teams).filter(([id]) => id !== ownTeam && (!isPregame || opponents.has(id))).map(([id, entry]) => <option key={id} value={id}>{entry.name}</option>)}</SelectField>
         <div className="field"><span>Brief mode</span><Segment label="Brief mode" options={modes} value={mode} onChange={next => {
           if (next === mode) return;
-          setMode(next);
-          setShowAll(false);
+          setTab("mode", next);
+          setTab("showAll", false);
           if (next === "pregame") {
             const match = game && matchupOpponent(game, ownTeam) === team ? game : games.find(game => matchupOpponent(game, ownTeam) === team) ?? games[0];
             if (match) selectGame(match);
-          } else setTeam(team);
+          } else setTab("chosenOpponent", team);
         }} /></div>
         {isPregame ? <SelectField label="Target game" value={game?.id ?? ""} onChange={event => {
           const match = games.find(game => game.id === event.target.value);
@@ -161,17 +164,17 @@ export function ScoutBrief({ dataset, archiveVersion, teamHistory, entry, initia
         }}>
           {games.map(match => <option key={match.id} value={match.id}>{displayDate(match.date, true)} · {gameLabel(match)}</option>)}
         </SelectField> : <div className="date-fields">
-          <label className="field"><span>From</span><input type="date" min={dataset.start} max={dataset.end} value={from} onChange={event => setFrom(event.target.value)} /></label>
-          <label className="field"><span>Through</span><input type="date" min={dataset.start} max={dataset.end} value={through} onChange={event => setThrough(event.target.value)} /></label>
+          <label className="field"><span>From</span><input type="date" min={dataset.start} max={dataset.end} value={from} onChange={event => setTab("from", event.target.value)} /></label>
+          <label className="field"><span>Through</span><input type="date" min={dataset.start} max={dataset.end} value={through} onChange={event => setTab("through", event.target.value)} /></label>
         </div>}
       </div>
     </section>}
 
-    {view === "opponent" && <div className="scout-view-nav"><Segment label="Opponent scouting perspective" options={opponentViews} value={opponentView} onChange={setOpponentView} /></div>}
+    {view === "opponent" && <div className="scout-view-nav"><Segment label="Opponent scouting perspective" options={opponentViews} value={opponentView} onChange={next => setTab("opponentView", next)} /></div>}
     {view !== "team" && <div className="scout-grid">
       {review ? valid ? <TeamScoutReview key={review} view={review} own={ownTeam} opponent={team} dates={dates} range={range} scoredStart={dataset.scoredStart} archiveVersion={archiveVersion} added={added} onAdd={addReviewFinding} onEvidence={openTeamEvidence} /> : <EmptyState title="Choose a valid scouting window">Pick a target game or valid archive dates.</EmptyState> : <section aria-label="Suggested tendencies" className="panel suggestions-panel" aria-busy={archive.pending}>
         <PanelHeader title="Suggested tendencies" description={archive.data ? <><AnimatedNumber value={scope.length} /> {team} attempts · {range}</> : range}>
-          <SelectField label="Rank by" className="scout-ranking" value={activeOrder} onChange={event => { setOrder(event.target.value as ScoutOrder); setShowAll(false); }}>
+          <SelectField label="Rank by" className="scout-ranking" value={activeOrder} onChange={event => { setTab("order", event.target.value as ScoutOrder); setTab("showAll", false); }}>
             <option value="balanced">Scouting priorities</option><option value="volume">Most shots</option><option value="expected" disabled={earlyPregame}>Highest expected FG%</option><option value="actual">Highest actual FG%</option><option value="low-expected" disabled={earlyPregame}>Lowest expected FG%</option><option value="low-actual">Lowest actual FG%</option><option value="above" disabled={earlyPregame}>FG% gap · highest first</option><option value="below" disabled={earlyPregame}>FG% gap · lowest first</option>
           </SelectField>
         </PanelHeader>
@@ -190,7 +193,7 @@ export function ScoutBrief({ dataset, archiveVersion, teamHistory, entry, initia
             <div className="suggestion-actions"><EvidenceLink onClick={() => setEvidence(candidate)}>View shots</EvidenceLink><Button variant="ghost" disabled={isAdded} onClick={() => add(candidate)}><span className="finding-icon" data-added={isAdded} aria-hidden="true"><Plus size={15} /><Check size={15} /></span>{isAdded ? "Added" : "Add finding"}</Button></div>
           </motion.article>;
         })}</div> : <EmptyState title="No tendencies in this window">{valid ? "Choose a later target game or widen the dates in Team overview." : "Choose a target game or set valid dates within the archive."}</EmptyState>}
-        {suggestions.length > 4 && <div className="panel-bottom"><Button variant="ghost" onClick={() => setShowAll(!showAll)}>{showAll ? "Show fewer tendencies" : <>Show all <AnimatedNumber value={suggestions.length} /> tendencies</>}{showAll ? <ArrowUp size={15} /> : <ArrowDown size={15} />}</Button></div>}
+        {suggestions.length > 4 && <div className="panel-bottom"><Button variant="ghost" onClick={() => setTab("showAll", !showAll)}>{showAll ? "Show fewer tendencies" : <>Show all <AnimatedNumber value={suggestions.length} /> tendencies</>}{showAll ? <ArrowUp size={15} /> : <ArrowDown size={15} />}</Button></div>}
       </section>}
 
       <section className="panel brief-panel" aria-label="Brief draft">

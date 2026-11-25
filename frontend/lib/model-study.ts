@@ -9,8 +9,21 @@ export function shotBand(probability: number) {
 export type ModelWindow = "full" | "holdout";
 export type ModelScope = { team: string; game: string; value: string; window: ModelWindow };
 
-export function modelSearch(scope: ModelScope) {
-  return new URLSearchParams({ ...scope, scope: "model" }).toString();
+export type ProbabilityRange = readonly [number, number];
+
+export function parseProbabilityRange(lower: string, upper: string): ProbabilityRange | undefined {
+  if (!lower.trim() || !upper.trim()) return undefined;
+  const min = Number(lower);
+  const max = Number(upper);
+  if (Number.isFinite(min) && Number.isFinite(max) && min >= 0 && max <= 100 && min <= max) return [min / 100, max / 100];
+}
+
+export function matchesProbabilityRange(probability: number | null, [min, max]: ProbabilityRange) {
+  return probability !== null && probability >= min && probability <= max;
+}
+
+export function modelSearch(scope: ModelScope, range?: { lower: string; upper: string }) {
+  return new URLSearchParams({ ...scope, ...range, scope: "model" }).toString();
 }
 
 type ScoredTotals = { attempts: number; makes: number; expectedMakes: number; points: number; expectedPoints: number };
@@ -28,11 +41,11 @@ function addAttempt(group: ScoredTotals, shot: Shot, probability: number) {
   group.expectedPoints += shot.value * probability;
 }
 
-export function studyShots(shots: Shot[], { team, game, value, window }: ModelScope, holdoutStart: string) {
+export function studyShots(shots: Shot[], { team, game, value, window }: ModelScope, holdoutStart: string, range?: ProbabilityRange) {
   const pool = totals();
   const groups = new Map<string, PlayerTotals>();
   for (const shot of shots) {
-    if (shot.probability === null || (window === "holdout" && shot.date < holdoutStart) || (team && shot.team !== team) || (game && shot.game !== game) || (value && String(shot.value) !== value)) continue;
+    if (shot.probability === null || (range && !matchesProbabilityRange(shot.probability, range)) || (window === "holdout" && shot.date < holdoutStart) || (team && shot.team !== team) || (game && shot.game !== game) || (value && String(shot.value) !== value)) continue;
     let player = groups.get(shot.player);
     if (!player) {
       player = { name: shot.player, teams: [], bands: probabilityBands.map(totals), ...totals() };

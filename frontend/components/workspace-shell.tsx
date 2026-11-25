@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { ChartScatter, ClipboardList, Crosshair, Database, Moon, Sun, UserSearch } from "lucide-react";
 import { MotionConfig } from "motion/react";
 import { useSyncExternalStore, type ReactNode } from "react";
+import { WorkspaceArchive } from "../lib/use-workspace-state";
 import { Button } from "./ui";
 
 const destinations = [
@@ -24,7 +25,7 @@ function readTheme() {
   return document.documentElement.dataset.theme === "dark";
 }
 
-export function WorkspaceShell({ dataset, children }: { dataset: string; children: ReactNode }) {
+export function WorkspaceShell({ dataset, archiveVersion, children }: { dataset: string; archiveVersion: string; children: ReactNode }) {
   const pathname = usePathname();
   const dark = useSyncExternalStore(subscribeTheme, readTheme, () => false);
 
@@ -48,7 +49,7 @@ export function WorkspaceShell({ dataset, children }: { dataset: string; childre
         <span>SHOT QUALITY</span>
       </Link>
       <nav aria-label="Analysis workspace" className="workspace-nav">
-        {destinations.map(({ href, label, shortLabel, icon: Icon }) => <Link key={href} className="workspace-link" href={href} aria-label={label} aria-current={pathname === href ? "page" : undefined}>
+        {destinations.map(({ href, label, shortLabel, icon: Icon }) => <Link key={href} className="workspace-link" href={href} aria-label={label} aria-current={pathname === href || (href === "/players" && pathname?.startsWith("/players/")) ? "page" : undefined}>
           <Icon size={16} strokeWidth={2} absoluteStrokeWidth aria-hidden="true" /><span>{shortLabel}</span>
         </Link>)}
       </nav>
@@ -58,7 +59,7 @@ export function WorkspaceShell({ dataset, children }: { dataset: string; childre
         <div className="workspace-source"><Database size={14} strokeWidth={1.5} absoluteStrokeWidth aria-hidden="true" /><span>{dataset}</span></div>
         <Button variant="icon" onClick={toggleTheme} aria-label={dark ? "Use light theme" : "Use dark theme"}>{dark ? <Sun size={17} /> : <Moon size={17} />}</Button>
       </header>
-      <main id="workspace-content" className="workspace-content">{children}</main>
+      <main id="workspace-content" className="workspace-content"><WorkspaceArchive value={archiveVersion}>{children}</WorkspaceArchive></main>
     </div>
   </div></MotionConfig>;
 }
